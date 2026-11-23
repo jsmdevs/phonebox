@@ -786,6 +786,8 @@ nav a.on::before { color: var(--accent); }
         <label class="check"><input type="checkbox" data-bind="display.pixelShift"> <span data-i18n="s.oled.pixelShift">Move the panel by a few pixels every 2 minutes, and the night clock around the screen</span></label>
         <div class="field" style="max-width:420px;margin-top:8px"><label data-i18n="s.oled.idleDim">Dim the panel after (minutes without a touch, 0 = never)</label><input type="number" min="0" max="1440" data-bind="display.idleDimMin" data-type="int">
           <span class="hint" data-i18n="s.oled.idleDimHint">A touch brightens it again without pressing anything; so do a page switch, a notification and a permission prompt.</span></div>
+        <div class="field" style="max-width:420px;margin-top:8px"><label data-i18n="s.oled.blackout">Cover the panel with black after the PC has had no keyboard or mouse input for (minutes, 0 = never)</label><input type="number" min="0" max="1440" data-bind="display.blackoutMin" data-type="int">
+          <span class="hint" data-i18n="s.oled.blackoutHint">Use the same time as the PC's "turn off the screen" setting. Moving the mouse or pressing a key on the PC brings the panel back; so do a touch (for 30 seconds), a notification and a permission prompt.</span></div>
       </div>
 
       <div class="card">

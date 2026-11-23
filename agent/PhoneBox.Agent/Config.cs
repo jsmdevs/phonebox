@@ -255,6 +255,8 @@ public sealed class DisplayConfig
     public string PageBarSide { get; set; } = "bottom";
     /// <summary>OLED burn-in protection: dim the panel after this many minutes without a touch; 0 = never.</summary>
     public int IdleDimMin { get; set; }
+    /// <summary>OLED burn-in protection: cover the panel with pure black after the PC has had no keyboard or mouse input for this many minutes; 0 = never.</summary>
+    public int BlackoutMin { get; set; }
     /// <summary>Screen pinning: Home and Recents stay on the panel.</summary>
     public bool Pin { get; set; }
     /// <summary>The panel is the phone's home app: it starts after a reboot and Home returns to it.</summary>
@@ -780,6 +782,7 @@ public sealed partial class ConfigStore(string path)
         c.Display.Wallpaper ??= new();
         c.Display.Wallpaper.Dim = Math.Clamp(c.Display.Wallpaper.Dim, 0, 90);
         c.Display.Wallpaper.Blur = Math.Clamp(c.Display.Wallpaper.Blur, 0, 20);
+        c.Display.BlackoutMin = Math.Clamp(c.Display.BlackoutMin, 0, 1440);
         c.Display.UnreachableNightDelayMin = Math.Clamp(c.Display.UnreachableNightDelayMin, 1, 30);
         // a language the panel does not have falls back to following the phone / browser. Matched case-insensitively
         // so "PT-br" still resolves, but stored in its canonical casing: i18n.js looks pt-BR up by exact code.

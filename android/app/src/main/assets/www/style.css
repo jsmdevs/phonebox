@@ -1530,6 +1530,7 @@ body.shifted { transform: translate(var(--shift-x, 0px), var(--shift-y, 0px)); t
 body.shifted #night > * { transform: translate(var(--night-x, 0), var(--night-y, 0)); transition: transform 3s ease; }
 body::after { content: ""; position: fixed; top: 0; right: 0; bottom: 0; left: 0; z-index: 85; background: #000; opacity: 0; pointer-events: none; transition: opacity 1.5s ease; }
 body.dimmed::after { opacity: .65; pointer-events: auto; }
+body.blackout::after { opacity: 1; pointer-events: auto; } /* PC idle: pure black, over the page dots too */
 body.waking::after { opacity: 0; pointer-events: auto; transition: opacity .2s ease; }
 #nClock { font-size: 34vh; font-weight: 200; letter-spacing: -0.04em; line-height: 1; }
 #nDate { font-size: 16px; margin-top: 6px; text-transform: capitalize; }

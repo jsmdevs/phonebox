@@ -91,6 +91,10 @@ public class ConfigTests
         Assert.Equal(1440, Load("""{ "display": { "pixelShift": true, "idleDimMin": 99999 } }""").Display.IdleDimMin);
         Assert.Equal(0, Load("""{ "display": { "idleDimMin": -5 } }""").Display.IdleDimMin);
         Assert.True(Load("""{ "display": { "pixelShift": true } }""").Display.PixelShift);
+        Assert.Equal(0, defaults.BlackoutMin);
+        Assert.Equal(1440, Load("""{ "display": { "blackoutMin": 99999 } }""").Display.BlackoutMin);
+        Assert.Equal(0, Load("""{ "display": { "blackoutMin": -5 } }""").Display.BlackoutMin);
+        Assert.Equal(10, Load("""{ "display": { "blackoutMin": 10 } }""").Display.BlackoutMin);
     }
 
     [Fact]

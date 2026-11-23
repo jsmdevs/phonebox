@@ -2424,13 +2424,15 @@ const SHIFT_MS = 120_000;
 let shiftStep = -1;
 let lastWake = Date.now();
 let dimmed = false;
+let blackedOut = false; // the PC-idle blackout (display.blackoutMin) is on
 
 /** Something happened that the user should see: brighten a dimmed panel and restart its idle time. */
 export function undim() {
   lastWake = Date.now();
   if (!dimmed) return;
   dimmed = false;
-  document.body.classList.remove('dimmed');
+  blackedOut = false;
+  document.body.classList.remove('dimmed', 'blackout');
 }
 
 // The dark layer keeps catching this touch until the finger lifts, so the widget under it is not pressed.
@@ -2463,8 +2465,25 @@ export function applyBurnIn() {
     root.setProperty('--night-y', `${ny}vmin`);
   }
   const after = Math.max(0, Math.floor(+d.idleDimMin || 0)) * 60_000;
-  const dim = after > 0 && !PREVIEW && !nightOn && $('approval').hidden
+  const idleDim = after > 0 && !PREVIEW && !nightOn && $('approval').hidden
     && Date.now() - Math.max(lastTouch, lastNav, lastWake) > after;
+  // PC-idle blackout: the agent reports the seconds since the last keyboard or mouse input on the PC (state.idleSec).
+  // A touch, a notification or a prompt lifts it for 30 s; an unreachable agent or a stale state never keeps it on
+  // (display.nightWhenUnreachable covers a PC that went to sleep).
+  const blackAfter = Math.max(0, Math.floor(+d.blackoutMin || 0)) * 60;
+  const pcIdle = D.state?.idleSec;
+  const black = blackAfter > 0 && !PREVIEW && !nightOn && $('approval').hidden && online === true
+    && Date.now() - lastStateAt < 15_000 && typeof pcIdle === 'number' && pcIdle >= blackAfter
+    && Date.now() - Math.max(lastTouch, lastNav, lastWake) > 30_000;
+  const dim = idleDim || black;
+  if (black !== blackedOut) {
+    blackedOut = black;
+    document.body.classList.toggle('blackout', black);
+    if (!black && !dim) { // the PC was used again: fade out quickly instead of over the slow dim transition
+      document.body.classList.add('waking');
+      setTimeout(() => document.body.classList.remove('waking'), 300);
+    }
+  }
   if (dim !== dimmed) {
     dimmed = dim;
     document.body.classList.toggle('dimmed', dim);

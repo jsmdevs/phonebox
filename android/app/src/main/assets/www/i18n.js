@@ -532,6 +532,8 @@
       's.oled.idleDim': 'Dim the panel after (minutes without a touch, 0 = never)',
       's.oled.lead': 'For OLED screens that show the same page for hours. The AMOLED black theme and the night screen help too.',
       's.oled.idleDimHint': 'A touch brightens it again without pressing anything; so do a page switch, a notification and a permission prompt.',
+      's.oled.blackout': 'Cover the panel with black after the PC has had no keyboard or mouse input for (minutes, 0 = never)',
+      's.oled.blackoutHint': 'Use the same time as the PC\'s "turn off the screen" setting. Moving the mouse or pressing a key on the PC brings the panel back; so do a touch (for 30 seconds), a notification and a permission prompt.',
       's.weather.openMeteoHint': 'The phone asks Open-Meteo for this location only while a page has a widget that uses the weather (weather, forecast, sun & moon, a clock with its weather line, Custom HTML).',
       's.display.orientationHint': 'You design pages in landscape; in portrait the panel arranges the widgets by itself, top to bottom. Tablets use the same pages, just bigger.',
       's.rules.countdown': 'Page switches count down on the phone and wait while you use it (General › Page switching).',
