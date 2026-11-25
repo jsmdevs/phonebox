@@ -266,6 +266,19 @@ public static class ClaudeHook
 /// <summary>How long the PC's user has not touched the keyboard or mouse.</summary>
 public static class Idle
 {
+    private static long _at = -10_000; // before any reading
+    private static double _last;
+
+    /// <summary>Seconds() read at most once a second (macOS and Linux start a process for it).</summary>
+    public static double SecondsCached()
+    {
+        var now = Environment.TickCount64;
+        if (now - Interlocked.Read(ref _at) < 1000) return _last;
+        _last = Seconds();
+        Interlocked.Exchange(ref _at, now);
+        return _last;
+    }
+
     public static double Seconds()
     {
 #if WINDOWS

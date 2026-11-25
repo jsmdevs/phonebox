@@ -42,6 +42,7 @@ public sealed class AgentConfig
     public CameraConfig Cameras { get; set; } = new();
     /// <summary>Home Assistant address and long-lived access token (the token never goes to the phone).</summary>
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
+    public TuyaConfig Tuya { get; set; } = new();
     /// <summary>OBS Studio's WebSocket server (obs-websocket 5).</summary>
     public ObsConfig Obs { get; set; } = new();
     /// <summary>Discord desktop app (local IPC): the developer application's client id and secret (the secret never goes to the phone).</summary>
@@ -239,9 +240,9 @@ public sealed class DisplayConfig
     public bool AutoBrightness { get; set; }
     /// <summary>Show the night screen whenever the room is dark, not only at night.</summary>
     public bool NightWhenDark { get; set; }
-    /// <summary>Show the night screen after the paired computer's agent has been unreachable for a while.</summary>
+    /// <summary>Cover the panel with pure black after the paired computer's agent has been unreachable for a while.</summary>
     public bool NightWhenUnreachable { get; set; }
-    /// <summary>Minutes to wait after the agent becomes unreachable before showing the night screen.</summary>
+    /// <summary>Minutes to wait after the agent becomes unreachable before the panel goes black.</summary>
     public int UnreachableNightDelayMin { get; set; } = 5;
     /// <summary>A hand near the phone (proximity sensor) wakes the night screen.</summary>
     public bool ProximityWake { get; set; } = true;
@@ -255,6 +256,10 @@ public sealed class DisplayConfig
     public string PageBarSide { get; set; } = "bottom";
     /// <summary>OLED burn-in protection: dim the panel after this many minutes without a touch; 0 = never.</summary>
     public int IdleDimMin { get; set; }
+    /// <summary>OLED burn-in protection: show the dimmed night clock after the PC has had no keyboard or mouse input for this many minutes; 0 = never.</summary>
+    public int IdleClockMin { get; set; }
+    /// <summary>OLED burn-in protection: cover the panel with pure black this many minutes after <see cref="IdleClockMin"/> (after the PC's last input when that is 0); 0 = never.</summary>
+    public int BlackoutMin { get; set; }
     /// <summary>Screen pinning: Home and Recents stay on the panel.</summary>
     public bool Pin { get; set; }
     /// <summary>The panel is the phone's home app: it starts after a reboot and Home returns to it.</summary>
@@ -459,9 +464,11 @@ public sealed class ChargeConfig
     public bool Enabled { get; set; }
     public int Min { get; set; } = 50;
     public int Max { get; set; } = 80;
-    /// <summary>"ha" (a Home Assistant switch entity) or "shortcuts" (one shortcut for power on, one for off).</summary>
+    /// <summary>"ha" (a Home Assistant switch entity), "tuya" (a Smart Life plug, see TuyaCloud) or "shortcuts" (one shortcut for power on, one for off).</summary>
     public string Method { get; set; } = "ha";
     public string? Entity { get; set; }
+    /// <summary>The Smart Life plug: "deviceId/code".</summary>
+    public string? TuyaSwitch { get; set; }
     public string? OnShortcut { get; set; }
     public string? OffShortcut { get; set; }
 }
@@ -780,6 +787,8 @@ public sealed partial class ConfigStore(string path)
         c.Display.Wallpaper ??= new();
         c.Display.Wallpaper.Dim = Math.Clamp(c.Display.Wallpaper.Dim, 0, 90);
         c.Display.Wallpaper.Blur = Math.Clamp(c.Display.Wallpaper.Blur, 0, 20);
+        c.Display.IdleClockMin = Math.Clamp(c.Display.IdleClockMin, 0, 1440);
+        c.Display.BlackoutMin = Math.Clamp(c.Display.BlackoutMin, 0, 1440);
         c.Display.UnreachableNightDelayMin = Math.Clamp(c.Display.UnreachableNightDelayMin, 1, 30);
         // a language the panel does not have falls back to following the phone / browser. Matched case-insensitively
         // so "PT-br" still resolves, but stored in its canonical casing: i18n.js looks pt-BR up by exact code.
@@ -961,7 +970,9 @@ public sealed partial class ConfigStore(string path)
         c.Charge ??= new();
         c.Charge.Min = Math.Clamp(c.Charge.Min, 5, 95);
         c.Charge.Max = Math.Clamp(c.Charge.Max, c.Charge.Min + 5, 100);
-        c.Charge.Method = c.Charge.Method == "shortcuts" ? "shortcuts" : "ha";
+        c.Charge.Method = c.Charge.Method is "shortcuts" or "tuya" ? c.Charge.Method : "ha";
+        c.Charge.TuyaSwitch = string.IsNullOrWhiteSpace(c.Charge.TuyaSwitch) ? null : c.Charge.TuyaSwitch.Trim();
+        c.Tuya = TuyaConfig.Normalize(c.Tuya);
         c.Charge.Entity = string.IsNullOrWhiteSpace(c.Charge.Entity) ? null : c.Charge.Entity.Trim();
 
         var ruleIds = new HashSet<string>();

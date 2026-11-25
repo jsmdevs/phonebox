@@ -76,6 +76,7 @@ builder.Services.AddSingleton<PushStore>();
 builder.Services.AddSingleton<CommandRunner>();
 builder.Services.AddSingleton<ApprovalStore>();
 builder.Services.AddSingleton<HomeAssistant>();
+builder.Services.AddSingleton<TuyaCloud>();
 builder.Services.AddSingleton<AppConsole>();
 builder.Services.AddSingleton<Dictation>();
 builder.Services.AddSingleton<SpectrumAnalyzer>();
@@ -423,6 +424,7 @@ app.MapGet("/api/settings", (HttpRequest req, ConfigStore cfg, HttpResponse res)
     {
         var publicConfig = JsonSerializer.SerializeToNode(config, ConfigStore.WriteOpts)?.AsObject();
         if (publicConfig?["steam"] is JsonObject steam) steam.Remove("apiKey");
+        if (publicConfig?["tuya"] is JsonObject tuya) tuya.Remove("accessSecret");
         json = publicConfig?.ToJsonString(ConfigStore.WriteOpts) ?? json;
     }
     res.Headers["X-Config-Version"] = cfg.Version.ToString();
@@ -444,7 +446,7 @@ app.MapPut("/api/settings", async (HttpRequest req, ConfigStore cfg, ControlDeck
     catch (JsonException) { }
     // /api/settings redacts Steam's key for callers that are not the same-origin desktop page.
     // Keep the configured secret if that redacted (or older) client sends it back as missing/null.
-    if (ConfigStore.PreserveSteamApiKey(proposed, cfg.Get().Steam.ApiKey))
+    if (ConfigStore.PreserveSteamApiKey(proposed, cfg.Get().Steam.ApiKey) | TuyaConfig.PreserveSecret(proposed, cfg.Get().Tuya.AccessSecret))
         body = JsonSerializer.Serialize(proposed, ConfigStore.WriteOpts);
     if (proposed?.Steam is { } steam)
     {
@@ -615,6 +617,8 @@ object State(IServiceProvider sp, long? ev)
         evSeq = push.Seq,
         events = ev is { } since ? push.Since(since) : [],
         pc = sp.GetRequiredService<SystemMonitor>().Snapshot(),
+        // seconds since the last keyboard or mouse input on this PC; only read while the panel's idle clock or blackout is switched on
+        idleSec = sp.GetRequiredService<ConfigStore>().Get().Display is { BlackoutMin: > 0 } or { IdleClockMin: > 0 } ? (double?)Math.Round(Idle.SecondsCached()) : null,
         // the last reading only: a widget that shows the media asks for fresh ones through GET /api/media (#523)
         media = sp.GetRequiredService<ControlDeck>().EffectiveMedia(sp.GetRequiredService<MediaMonitor>().Peek()),
         audio = sp.GetRequiredService<AudioControl>().Snapshot(),
@@ -684,6 +688,9 @@ app.MapGet("/api/ha/entities", async (HomeAssistant ha) => Results.Json(await ha
 // Settings › General › Home Assistant › Test (local only)
 app.MapPost("/api/ha/test", async (HomeAssistantConfig body) =>
     Results.Json(new { result = await HomeAssistant.TestAsync(body.Url ?? "", body.Token ?? "") }));
+
+// Settings › General › Battery care › Smart Life › Load devices (local only; only the credentials in the body are used)
+app.MapPost("/api/tuya/devices", async (TuyaConfig body, TuyaCloud tuya) => Results.Json(await tuya.ListAsync(body)));
 
 // Settings › General › Photo frame › Immich › Load albums (local only: not on the Wi-Fi allow-list). The key in the body
 // is used for this request only; the saved one stands in when the address is unchanged and the field was left empty.

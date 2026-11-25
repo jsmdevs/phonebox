@@ -91,6 +91,14 @@ public class ConfigTests
         Assert.Equal(1440, Load("""{ "display": { "pixelShift": true, "idleDimMin": 99999 } }""").Display.IdleDimMin);
         Assert.Equal(0, Load("""{ "display": { "idleDimMin": -5 } }""").Display.IdleDimMin);
         Assert.True(Load("""{ "display": { "pixelShift": true } }""").Display.PixelShift);
+        Assert.Equal(0, defaults.IdleClockMin);
+        Assert.Equal(1440, Load("""{ "display": { "idleClockMin": 99999 } }""").Display.IdleClockMin);
+        Assert.Equal(0, Load("""{ "display": { "idleClockMin": -5 } }""").Display.IdleClockMin);
+        Assert.Equal(5, Load("""{ "display": { "idleClockMin": 5 } }""").Display.IdleClockMin);
+        Assert.Equal(0, defaults.BlackoutMin);
+        Assert.Equal(1440, Load("""{ "display": { "blackoutMin": 99999 } }""").Display.BlackoutMin);
+        Assert.Equal(0, Load("""{ "display": { "blackoutMin": -5 } }""").Display.BlackoutMin);
+        Assert.Equal(10, Load("""{ "display": { "blackoutMin": 10 } }""").Display.BlackoutMin);
     }
 
     [Fact]
@@ -413,6 +421,7 @@ public class LanTests
     [InlineData("/api/codex/hook", false)]
     [InlineData("/api/obs-test", false)]
     [InlineData("/api/ha/test", false)]
+    [InlineData("/api/tuya/devices", false)]
     [InlineData("/api/phones", false)]
     [InlineData("/api/rules/test", false)]
     [InlineData("/panel/main.js", false)]

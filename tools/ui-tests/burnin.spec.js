@@ -85,3 +85,80 @@ test('a page switch waiting behind the open overview does not keep the panel fro
   await page.clock.fastForward(61_000);
   await expect(page.locator('body')).toHaveClass(/dimmed/);
 });
+
+// PC idle: the dimmed clock, then pure black. The demo agent reports no idle time, so it is added to its state answers.
+async function showIdle(page, display) {
+  await show(page, { idleClockMin: 5, blackoutMin: 3, ...display });
+  await page.evaluate(() => {
+    const real = window.fetch;
+    window.__idle = 0;
+    window.fetch = async (url, init) => {
+      if (window.__down) throw new TypeError('the agent is not running');
+      const res = await real(url, init);
+      if (!/\/api\/state/.test(String(url?.url ?? url))) return res;
+      return new Response(JSON.stringify({ ...await res.json(), idleSec: window.__idle }), { headers: { 'Content-Type': 'application/json' } });
+    };
+  });
+  await page.clock.runFor(32_000); // past the 30 s a fresh panel stays lit
+}
+const idle = async (page, sec) => { await page.evaluate((s) => { window.__idle = s; }, sec); await page.clock.runFor(2_500); };
+const body = async (page) => page.evaluate(() => ['night', 'blackout'].filter((c) => document.body.classList.contains(c)).join('+'));
+
+test('an idle PC brings the dimmed clock, then black, and its input brings the panel back from either', async ({ page }) => {
+  await showIdle(page, {});
+  await idle(page, 299);
+  expect(await body(page)).toBe('');
+  await idle(page, 300);
+  expect(await body(page)).toBe('night');
+  await idle(page, 1);
+  expect(await body(page)).toBe('');
+  await idle(page, 479);
+  expect(await body(page)).toBe('night');
+  await idle(page, 480);
+  expect(await body(page)).toBe('night+blackout');
+  await idle(page, 1);
+  expect(await body(page)).toBe('');
+});
+
+test('either idle step can be left out', async ({ page }) => {
+  await showIdle(page, { idleClockMin: 0 });
+  await idle(page, 180);
+  expect(await body(page)).toBe('blackout');
+  await showIdle(page, { blackoutMin: 0 });
+  await idle(page, 9999);
+  expect(await body(page)).toBe('night');
+});
+
+test('a touch lifts the idle screens for 30 seconds', async ({ page }) => {
+  await showIdle(page, {});
+  await idle(page, 900);
+  expect(await body(page)).toBe('night+blackout');
+  await page.mouse.click(300, 150);
+  expect(await body(page)).toBe('');
+  await page.clock.runFor(25_000);
+  expect(await body(page)).toBe('');
+  await page.clock.runFor(8_000);
+  expect(await body(page)).toBe('night+blackout');
+});
+
+test('a PC that goes to sleep behind the clock does not light the panel', async ({ page }) => {
+  await showIdle(page, { nightWhenUnreachable: true, unreachableNightDelayMin: 1 });
+  await idle(page, 310);
+  expect(await body(page)).toBe('night');
+  await page.evaluate(() => { window.__down = true; });
+  await page.clock.runFor(30_000);
+  expect(await body(page)).toBe('night');
+  await page.clock.runFor(35_000);
+  expect(await body(page)).toContain('blackout');
+  await page.evaluate(() => { window.__down = false; window.__idle = 0; });
+  await page.clock.runFor(4_000);
+  expect(await body(page)).toBe('');
+});
+
+test('without the unreachable setting an old state keeps no idle screen on', async ({ page }) => {
+  await showIdle(page, {});
+  await idle(page, 900);
+  await page.evaluate(() => { window.__down = true; });
+  await page.clock.runFor(5_000);
+  expect(await body(page)).toBe('');
+});

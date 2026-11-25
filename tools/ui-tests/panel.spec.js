@@ -540,6 +540,7 @@ test('the live preview does not enter unreachable night mode', async ({ page }) 
   });
   await page.clock.runFor(61_000);
   await expect(preview.locator('body')).not.toHaveClass(/(^|\s)night($|\s)/);
+  await expect(preview.locator('body')).not.toHaveClass(/(^|\s)blackout($|\s)/);
 });
 
 test('rule options and page switching settings are there', async ({ page }) => {
