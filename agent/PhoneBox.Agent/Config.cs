@@ -42,6 +42,7 @@ public sealed class AgentConfig
     public CameraConfig Cameras { get; set; } = new();
     /// <summary>Home Assistant address and long-lived access token (the token never goes to the phone).</summary>
     public HomeAssistantConfig HomeAssistant { get; set; } = new();
+    public TuyaConfig Tuya { get; set; } = new();
     /// <summary>OBS Studio's WebSocket server (obs-websocket 5).</summary>
     public ObsConfig Obs { get; set; } = new();
     /// <summary>Discord desktop app (local IPC): the developer application's client id and secret (the secret never goes to the phone).</summary>
@@ -461,9 +462,11 @@ public sealed class ChargeConfig
     public bool Enabled { get; set; }
     public int Min { get; set; } = 50;
     public int Max { get; set; } = 80;
-    /// <summary>"ha" (a Home Assistant switch entity) or "shortcuts" (one shortcut for power on, one for off).</summary>
+    /// <summary>"ha" (a Home Assistant switch entity), "tuya" (a Smart Life plug, see TuyaCloud) or "shortcuts" (one shortcut for power on, one for off).</summary>
     public string Method { get; set; } = "ha";
     public string? Entity { get; set; }
+    /// <summary>The Smart Life plug: "deviceId/code".</summary>
+    public string? TuyaSwitch { get; set; }
     public string? OnShortcut { get; set; }
     public string? OffShortcut { get; set; }
 }
@@ -964,7 +967,9 @@ public sealed partial class ConfigStore(string path)
         c.Charge ??= new();
         c.Charge.Min = Math.Clamp(c.Charge.Min, 5, 95);
         c.Charge.Max = Math.Clamp(c.Charge.Max, c.Charge.Min + 5, 100);
-        c.Charge.Method = c.Charge.Method == "shortcuts" ? "shortcuts" : "ha";
+        c.Charge.Method = c.Charge.Method is "shortcuts" or "tuya" ? c.Charge.Method : "ha";
+        c.Charge.TuyaSwitch = string.IsNullOrWhiteSpace(c.Charge.TuyaSwitch) ? null : c.Charge.TuyaSwitch.Trim();
+        c.Tuya = TuyaConfig.Normalize(c.Tuya);
         c.Charge.Entity = string.IsNullOrWhiteSpace(c.Charge.Entity) ? null : c.Charge.Entity.Trim();
 
         var ruleIds = new HashSet<string>();

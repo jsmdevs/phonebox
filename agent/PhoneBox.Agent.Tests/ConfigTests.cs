@@ -417,6 +417,7 @@ public class LanTests
     [InlineData("/api/codex/hook", false)]
     [InlineData("/api/obs-test", false)]
     [InlineData("/api/ha/test", false)]
+    [InlineData("/api/tuya/devices", false)]
     [InlineData("/api/phones", false)]
     [InlineData("/api/rules/test", false)]
     [InlineData("/panel/main.js", false)]

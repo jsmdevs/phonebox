@@ -7,10 +7,10 @@ public sealed record PhoneBatteryReport(int Level, bool Plugged, double? Temp, l
 /// <summary>
 /// Keeps the phone's battery between two levels (say 50 and 80 %) so a panel that is plugged in all the time does not
 /// wear its battery out. Phones cannot stop charging on their own without root, so the power is switched where it comes
-/// from: a Home Assistant smart plug (switch entity) or two shortcuts (for example uhubctl for a USB hub with switchable
+/// from: a smart plug (a Home Assistant switch or a Smart Life plug) or two shortcuts (for example uhubctl for a USB hub with switchable
 /// ports, or a smart plug's command line). The phone reports its level every half minute (over USB or Wi-Fi).
 /// </summary>
-public sealed class ChargeGuard(ConfigStore config, HomeAssistant ha, PushStore push, AudioControl audio, ILogger<ChargeGuard> log) : BackgroundService
+public sealed class ChargeGuard(ConfigStore config, HomeAssistant ha, PushStore push, AudioControl audio, ILogger<ChargeGuard> log, TuyaCloud? tuya = null) : BackgroundService
 {
     /// <summary>A switch command is repeated at most this often if the phone's charging state does not follow.</summary>
     private const long RetryMs = 10 * 60_000;
@@ -22,22 +22,26 @@ public sealed class ChargeGuard(ConfigStore config, HomeAssistant ha, PushStore 
     private long _lastAt;
     private string? _error;
     private readonly SemaphoreSlim _switchGate = new(1, 1);
-    private sealed record HaTarget(string? Entity, string? Url, string? Token);
+    /// <summary>A smart plug. For Smart Life (Method "tuya"), Url is the data center, Token the secret and Id the Access ID.</summary>
+    private sealed record HaTarget(string? Entity, string? Url, string? Token, string Method = "ha", string? Id = null);
     private HaTarget? _offHa;
 
-    private static bool SameSupply(HaTarget? a, HaTarget b) => a is not null && a.Entity == b.Entity && a.Url == b.Url;
+    private static bool SameSupply(HaTarget? a, HaTarget b) => a is not null && a.Method == b.Method && a.Entity == b.Entity && a.Url == b.Url;
     private static HaTarget RecoveryTarget(HaTarget owner, HaTarget current) =>
-        owner.Url == current.Url && current.Token is { } token ? owner with { Token = token } : owner;
+        owner.Method == current.Method && owner.Url == current.Url && current.Token is { } token ? owner with { Token = token, Id = current.Id } : owner;
 
     // The entity and the connection come from one settings snapshot, so a save in between cannot pair an old entity
     // with a new server.
-    private static HaTarget Target(AgentConfig cfg) => new(cfg.Charge.Entity, cfg.HomeAssistant.Url, cfg.HomeAssistant.Token);
+    private static HaTarget Target(AgentConfig cfg) => cfg.Charge.Method == "tuya"
+        ? new(cfg.Charge.TuyaSwitch, cfg.Tuya.Region, cfg.Tuya.AccessId is null ? null : cfg.Tuya.AccessSecret, "tuya", cfg.Tuya.AccessId)
+        : new(cfg.Charge.Entity, cfg.HomeAssistant.Url, cfg.HomeAssistant.Token);
 
     /// <summary>Whether the supply a test asked for (its settings and server) is still the configured one.</summary>
     private static bool SameSupplySettings(ChargeConfig requested, string? requestedUrl, AgentConfig current) =>
         requested.Method == current.Charge.Method && requested.Entity == current.Charge.Entity
+        && requested.TuyaSwitch == current.Charge.TuyaSwitch
         && requested.OnShortcut == current.Charge.OnShortcut && requested.OffShortcut == current.Charge.OffShortcut
-        && (requested.Method == "shortcuts" || requestedUrl == current.HomeAssistant.Url);
+        && (requested.Method == "shortcuts" || requestedUrl == Target(current).Url);
 
     /// <summary>Called by the phone (POST /api/phone/battery).</summary>
     public static void Report(int level, bool plugged, double? temp, string? source = null, string? usb = null) =>
@@ -88,7 +92,7 @@ public sealed class ChargeGuard(ConfigStore config, HomeAssistant ha, PushStore 
                 || (owner.Token is not null && target.Token is null)))
             {
                 // Recover the supply we cut before acting on replacement settings.
-                if (await SwitchCore(new ChargeConfig { Method = "ha" }, "on", RecoveryTarget(owner, target)) is null
+                if (await SwitchCore(new ChargeConfig { Method = owner.Method }, "on", RecoveryTarget(owner, target)) is null
                     && (c.Method == "shortcuts" || !SameSupply(owner, target)))
                 { _last = null; _lastAt = 0; }
                 return;
@@ -105,7 +109,7 @@ public sealed class ChargeGuard(ConfigStore config, HomeAssistant ha, PushStore 
 
     public async Task<string?> Switch(ChargeConfig c, string action)
     {
-        var requestedUrl = config.Get().HomeAssistant.Url;
+        var requestedUrl = Target(config.Get()).Url;
         await _switchGate.WaitAsync();
         try
         {
@@ -115,7 +119,7 @@ public sealed class ChargeGuard(ConfigStore config, HomeAssistant ha, PushStore 
             c = cfg.Charge;
             var target = Target(cfg);
             if (action == "off" && _offHa is { } owner && (c.Method == "shortcuts" || !SameSupply(owner, target)))
-                if (await SwitchCore(new ChargeConfig { Method = "ha" }, "on", RecoveryTarget(owner, target)) is { } error) return error;
+                if (await SwitchCore(new ChargeConfig { Method = owner.Method }, "on", RecoveryTarget(owner, target)) is { } error) return error;
             return await SwitchCore(c, action, target);
         }
         finally { _switchGate.Release(); }
@@ -129,12 +133,15 @@ public sealed class ChargeGuard(ConfigStore config, HomeAssistant ha, PushStore 
             var id = action == "on" ? c.OnShortcut : c.OffShortcut;
             error = string.IsNullOrWhiteSpace(id) ? $"no shortcut set for power {action}" : Shortcuts.Run(config.Get(), id, log, push, audio);
         }
-        else if (string.IsNullOrWhiteSpace(target.Entity)) error = "no Home Assistant switch set";
+        else if (string.IsNullOrWhiteSpace(target.Entity)) error = c.Method == "tuya" ? "no Smart Life plug set" : "no Home Assistant switch set";
         else
         {
             var recovery = action == "on" && SameSupply(_offHa, target) ? _offHa : null;
-            var result = await ha.SwitchAsync(target.Entity, action == "on",
-                new HomeAssistantConfig { Url = target.Url, Token = target.Token ?? recovery?.Token });
+            var result = c.Method == "tuya"
+                ? await (tuya ?? new TuyaCloud()).SwitchAsync(target.Entity, action == "on",
+                    new TuyaConfig { Region = target.Url!, AccessId = (target.Token is null ? recovery?.Id : null) ?? target.Id, AccessSecret = target.Token ?? recovery?.Token })
+                : await ha.SwitchAsync(target.Entity, action == "on",
+                    new HomeAssistantConfig { Url = target.Url, Token = target.Token ?? recovery?.Token });
             error = result.Error;
             // A failed response can follow a successful switch; retain that possible off target too.
             if (action == "off" && result.Submitted) _offHa = target;
