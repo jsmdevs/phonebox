@@ -118,20 +118,22 @@ test('when the agent answers again the button goes away and the next outage star
   await expect(button(page)).toBeEnabled();
 });
 
-test('the unreachable setting waits the configured delay before showing the night screen', async ({ page }) => {
+test('the unreachable setting waits the configured delay before the panel goes black', async ({ page }) => {
   await open(page, { unreachableNight: true, unreachableNightDelayMin: 1 });
   await page.clock.runFor(59_000);
-  await expect(page.locator('body')).not.toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).not.toHaveClass(/(^|\s)blackout($|\s)/);
   await page.clock.runFor(2_000);
-  await expect(page.locator('body')).toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).toHaveClass(/(^|\s)blackout($|\s)/);
+  await expect(page.locator('body')).not.toHaveClass(/(^|\s)night($|\s)/);
 });
 
-test('the night screen caused by an outage is cleared when the agent answers', async ({ page }) => {
+test('the black panel caused by an outage is cleared when the agent answers', async ({ page }) => {
   await open(page, { unreachableNight: true, unreachableNightDelayMin: 1 });
   await page.clock.runFor(61_000);
-  await expect(page.locator('body')).toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).toHaveClass(/(^|\s)blackout($|\s)/);
   await page.evaluate(async () => { (await import('/panel/main.js')).setOnline(true); });
-  await expect(page.locator('body')).not.toHaveClass(/(^|\s)night($|\s)/);
+  await page.clock.runFor(1_100);
+  await expect(page.locator('body')).not.toHaveClass(/(^|\s)blackout($|\s)/);
   await expect(button(page)).toBeHidden();
 });
 
@@ -151,34 +153,35 @@ test('a short outage reconnect resets the delay and a second outage starts it ag
   await page.evaluate(async () => { window.fetch = () => Promise.reject(new TypeError('the agent is not running')); });
   await page.clock.runFor(2_000);
   await page.clock.runFor(298_000);
-  await expect(page.locator('body')).not.toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).not.toHaveClass(/(^|\s)blackout($|\s)/);
   await page.clock.runFor(4_000);
-  await expect(page.locator('body')).toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).toHaveClass(/(^|\s)blackout($|\s)/);
 });
 
-test('touching the outage night screen wakes it for 30 seconds and it returns while still unreachable', async ({ page }) => {
+test('touching the black panel of an outage wakes it for 30 seconds and it returns while still unreachable', async ({ page }) => {
   await open(page, { unreachableNight: true, unreachableNightDelayMin: 1 });
   await page.clock.runFor(61_000);
-  await expect(page.locator('body')).toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).toHaveClass(/(^|\s)blackout($|\s)/);
   await page.mouse.click(300, 300);
-  await expect(page.locator('body')).not.toHaveClass(/(^|\s)night($|\s)/);
-  await page.clock.runFor(31_000);
-  await expect(page.locator('body')).toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).not.toHaveClass(/(^|\s)blackout($|\s)/);
+  await page.clock.runFor(32_000);
+  await expect(page.locator('body')).toHaveClass(/(^|\s)blackout($|\s)/);
 });
 
-test('a long outage never shows the night screen when the setting is disabled', async ({ page }) => {
+test('a long outage never turns the panel black when the setting is disabled', async ({ page }) => {
   await open(page, { unreachableNight: false, unreachableNightDelayMin: 5 });
   await page.clock.runFor(301_000);
   await expect(page.locator('body')).toHaveClass(/(^|\s)offline($|\s)/);
-  await expect(page.locator('body')).not.toHaveClass(/(^|\s)night($|\s)/);
+  await expect(page.locator('body')).not.toHaveClass(/(^|\s)blackout($|\s)/);
 });
 
-test('the unreachable night screen keeps the Wake the PC control reachable', async ({ page }) => {
+test('one touch on the black panel of an outage brings the Wake the PC control back', async ({ page }) => {
   await open(page, { unreachableNight: true, unreachableNightDelayMin: 1 });
   await page.clock.runFor(61_000);
-  await expect(page.locator('body')).toHaveClass(/(^|\s)night($|\s)/);
-  await expect(button(page)).toBeVisible();
-  expect(await page.locator('#wake').evaluate((el) => getComputedStyle(el).zIndex)).toBe('31');
+  await expect(page.locator('body')).toHaveClass(/(^|\s)blackout($|\s)/);
+  await page.mouse.click(300, 300);
+  expect(await wakes(page)).toEqual([]);
+  await page.clock.runFor(400); // the touch that lifts the black layer presses nothing
   await button(page).click();
   expect(await wakes(page)).toEqual(['pc1']);
 });

@@ -617,8 +617,8 @@ object State(IServiceProvider sp, long? ev)
         evSeq = push.Seq,
         events = ev is { } since ? push.Since(since) : [],
         pc = sp.GetRequiredService<SystemMonitor>().Snapshot(),
-        // seconds since the last keyboard or mouse input on this PC; only read while the panel's blackout is switched on
-        idleSec = sp.GetRequiredService<ConfigStore>().Get().Display.BlackoutMin > 0 ? (double?)Math.Round(Idle.SecondsCached()) : null,
+        // seconds since the last keyboard or mouse input on this PC; only read while the panel's idle clock or blackout is switched on
+        idleSec = sp.GetRequiredService<ConfigStore>().Get().Display is { BlackoutMin: > 0 } or { IdleClockMin: > 0 } ? (double?)Math.Round(Idle.SecondsCached()) : null,
         // the last reading only: a widget that shows the media asks for fresh ones through GET /api/media (#523)
         media = sp.GetRequiredService<ControlDeck>().EffectiveMedia(sp.GetRequiredService<MediaMonitor>().Peek()),
         audio = sp.GetRequiredService<AudioControl>().Snapshot(),

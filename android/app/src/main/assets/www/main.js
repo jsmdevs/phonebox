@@ -107,6 +107,7 @@ export let lastUserTouch = 0;     // last real touch or key (rules wait a while 
 export let wakeUntil = 0;
 export let rulesPaused = null;    // unix ms until which the agent's rules are paused
 export let nightOn = null;
+let nightQuiet = false;           // it is on for the night or a dark room, so no sounds (the PC-idle clock keeps them)
 export let evSeq = null;          // last event seq the agent reported in a state (notifications, page switches…)
 let evReplay = false;             // the agent restarted: the next poll replays the events it kept (from 0)
 let evGen = 0;                    // bumped when a restart arms evReplay, so an answer already in flight cannot disarm a newer one
@@ -175,7 +176,7 @@ export async function api(path, method = 'GET', timeout = 2500) {
 }
 
 export const haptic = () => { try { bridge && bridge.haptic(); } catch (_) {} };
-export const buzz = (p) => { try { if (bridge && !nightOn && cfg.display?.vibrate !== false) bridge.buzz(p); } catch (_) {} };
+export const buzz = (p) => { try { if (bridge && !nightQuiet && cfg.display?.vibrate !== false) bridge.buzz(p); } catch (_) {} };
 // One AudioContext for the whole panel: Chrome limits how many can be open, so a new one per chime would run out.
 // It is suspended a second after the last tone, so a panel that runs all day doesn't keep an audio output open.
 let chimeCtx = null, chimeIdle = 0;
@@ -185,7 +186,7 @@ let chimeCtx = null, chimeIdle = 0;
  */
 export const chime = (volume, finished = false) => {
   try {
-    if (nightOn) return;
+    if (nightQuiet) return;
     const Ctx = window.AudioContext || window.webkitAudioContext;
     if (!Ctx) return;
     if (!chimeCtx) chimeCtx = new Ctx();
@@ -1951,7 +1952,7 @@ function renderNav(req = null, why = '') {
   // a new waiting request or countdown must not be hidden under the dark layer; this runs every 250 ms while one
   // waits, so only its first appearance counts, or the panel would never dim behind a request that keeps waiting
   const wakeKey = why ? req : navCount;
-  if (wakeKey !== navWoken) { navWoken = wakeKey; undim(); }
+  if (wakeKey !== navWoken) { navWoken = wakeKey; if (!pcIdleStage()) undim(); }
   const name = req.name || (req.kind === 'home' ? t('panel.nobodyAround') : req.kind === 'back' ? t('panel.done') : t('panel.pageSwitch'));
   const target = req.kind === 'home' ? pageLabel(homeIndex()) : pageLabel(req.page);
   const more = navQueue.length > 1 ? ` +${navQueue.length - 1}` : '';
@@ -2352,7 +2353,8 @@ export function isNight(now) {
   return a <= b ? t >= a && t < b : t >= a || t < b;
 }
 
-export function setNight(on) {
+export function setNight(on, quiet = on) {
+  nightQuiet = on && quiet;
   if (on === nightOn) return;
   nightOn = on;
   document.body.classList.toggle('night', on);
@@ -2364,11 +2366,37 @@ function reconcileUnreachableNight(now = new Date()) {
   const enabled = !PREVIEW && cfg.display?.nightWhenUnreachable === true;
   if (!enabled) unreachableSince = 0;
   else if (online === false && unreachableSince === 0) unreachableSince = Date.now();
-  const delayMin = Math.max(1, Math.min(30, +cfg.display?.unreachableNightDelayMin || 5));
-  const unreachable = enabled && unreachableSince > 0
-    && Date.now() - unreachableSince >= delayMin * 60_000;
   const dark = darkRoom && cfg.display?.nightWhenDark === true;
-  setNight((isNight(now) || dark || unreachable) && Date.now() > wakeUntil);
+  const night = isNight(now) || dark;
+  setNight((night || (idleMinutes('idleClockMin') > 0 && pcIdleStage() > 0)) && Date.now() > wakeUntil, night);
+}
+
+const idleMinutes = (key) => Math.max(0, Math.floor(+cfg.display?.[key] || 0));
+
+/**
+ * What an unattended PC leaves on the panel: 0 the pages, 1 the night clock, 2 pure black.
+ * The clock comes after display.idleClockMin minutes without keyboard or mouse input on the PC (state.idleSec), black
+ * display.blackoutMin minutes after that; a step set to 0 is left out. A PC that stays unreachable
+ * (display.nightWhenUnreachable) means black. A touch, a notification or a prompt lifts either step for 30 s.
+ */
+function pcIdleStage() {
+  const d = cfg.display || {};
+  const now = Date.now();
+  if (PREVIEW || !$('approval').hidden || now <= wakeUntil || now - Math.max(lastTouch, lastWake) <= 30_000) return 0;
+  const blackWhenUnreachable = d.nightWhenUnreachable === true;
+  const delayMin = Math.max(1, Math.min(30, +d.unreachableNightDelayMin || 5));
+  if (blackWhenUnreachable && online === false && unreachableSince > 0 && now - unreachableSince >= delayMin * 60_000) return 2;
+  const clock = idleMinutes('idleClockMin') * 60, black = idleMinutes('blackoutMin') * 60;
+  let idleFor = D.state?.idleSec;
+  if (typeof idleFor !== 'number') return 0;
+  if (online !== true || now - lastStateAt >= 15_000) {
+    // A PC that goes to sleep while a step is on must not light the panel until the unreachable delay is over: its idle
+    // time goes on. Otherwise an old state never keeps a step on.
+    if (!blackWhenUnreachable || idleFor < (clock || black)) return 0;
+    idleFor += (now - lastStateAt) / 1000;
+  }
+  if (black > 0 && idleFor >= clock + black) return 2;
+  return clock > 0 && idleFor >= clock ? 1 : 0;
 }
 /**
  * Before widgets are built: a timer that ran out while the panel was closed rings during the build, so the night
@@ -2424,7 +2452,7 @@ const SHIFT_MS = 120_000;
 let shiftStep = -1;
 let lastWake = Date.now();
 let dimmed = false;
-let blackedOut = false; // the PC-idle blackout (display.blackoutMin) is on
+let blackedOut = false; // the pure black layer (pcIdleStage) is on
 
 /** Something happened that the user should see: brighten a dimmed panel and restart its idle time. */
 export function undim() {
@@ -2467,14 +2495,7 @@ export function applyBurnIn() {
   const after = Math.max(0, Math.floor(+d.idleDimMin || 0)) * 60_000;
   const idleDim = after > 0 && !PREVIEW && !nightOn && $('approval').hidden
     && Date.now() - Math.max(lastTouch, lastNav, lastWake) > after;
-  // PC-idle blackout: the agent reports the seconds since the last keyboard or mouse input on the PC (state.idleSec).
-  // A touch, a notification or a prompt lifts it for 30 s; an unreachable agent or a stale state never keeps it on
-  // (display.nightWhenUnreachable covers a PC that went to sleep).
-  const blackAfter = Math.max(0, Math.floor(+d.blackoutMin || 0)) * 60;
-  const pcIdle = D.state?.idleSec;
-  const black = blackAfter > 0 && !PREVIEW && !nightOn && $('approval').hidden && online === true
-    && Date.now() - lastStateAt < 15_000 && typeof pcIdle === 'number' && pcIdle >= blackAfter
-    && Date.now() - Math.max(lastTouch, lastNav, lastWake) > 30_000;
+  const black = pcIdleStage() === 2; // over the night clock too
   const dim = idleDim || black;
   if (black !== blackedOut) {
     blackedOut = black;

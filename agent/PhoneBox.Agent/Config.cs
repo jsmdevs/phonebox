@@ -240,9 +240,9 @@ public sealed class DisplayConfig
     public bool AutoBrightness { get; set; }
     /// <summary>Show the night screen whenever the room is dark, not only at night.</summary>
     public bool NightWhenDark { get; set; }
-    /// <summary>Show the night screen after the paired computer's agent has been unreachable for a while.</summary>
+    /// <summary>Cover the panel with pure black after the paired computer's agent has been unreachable for a while.</summary>
     public bool NightWhenUnreachable { get; set; }
-    /// <summary>Minutes to wait after the agent becomes unreachable before showing the night screen.</summary>
+    /// <summary>Minutes to wait after the agent becomes unreachable before the panel goes black.</summary>
     public int UnreachableNightDelayMin { get; set; } = 5;
     /// <summary>A hand near the phone (proximity sensor) wakes the night screen.</summary>
     public bool ProximityWake { get; set; } = true;
@@ -256,7 +256,9 @@ public sealed class DisplayConfig
     public string PageBarSide { get; set; } = "bottom";
     /// <summary>OLED burn-in protection: dim the panel after this many minutes without a touch; 0 = never.</summary>
     public int IdleDimMin { get; set; }
-    /// <summary>OLED burn-in protection: cover the panel with pure black after the PC has had no keyboard or mouse input for this many minutes; 0 = never.</summary>
+    /// <summary>OLED burn-in protection: show the dimmed night clock after the PC has had no keyboard or mouse input for this many minutes; 0 = never.</summary>
+    public int IdleClockMin { get; set; }
+    /// <summary>OLED burn-in protection: cover the panel with pure black this many minutes after <see cref="IdleClockMin"/> (after the PC's last input when that is 0); 0 = never.</summary>
     public int BlackoutMin { get; set; }
     /// <summary>Screen pinning: Home and Recents stay on the panel.</summary>
     public bool Pin { get; set; }
@@ -785,6 +787,7 @@ public sealed partial class ConfigStore(string path)
         c.Display.Wallpaper ??= new();
         c.Display.Wallpaper.Dim = Math.Clamp(c.Display.Wallpaper.Dim, 0, 90);
         c.Display.Wallpaper.Blur = Math.Clamp(c.Display.Wallpaper.Blur, 0, 20);
+        c.Display.IdleClockMin = Math.Clamp(c.Display.IdleClockMin, 0, 1440);
         c.Display.BlackoutMin = Math.Clamp(c.Display.BlackoutMin, 0, 1440);
         c.Display.UnreachableNightDelayMin = Math.Clamp(c.Display.UnreachableNightDelayMin, 1, 30);
         // a language the panel does not have falls back to following the phone / browser. Matched case-insensitively

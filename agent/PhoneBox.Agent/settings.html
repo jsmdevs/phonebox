@@ -767,8 +767,8 @@ nav a.on::before { color: var(--accent); }
         <label class="check"><input type="checkbox" data-bind="display.volumeKeys"> <span data-i18n="s.display.volumeKeys">The phone's volume keys switch pages</span></label>
         <label class="check"><input type="checkbox" data-bind="display.autoBrightness"> <span data-i18n="s.display.autoBrightness">Brightness follows the room (light sensor)</span></label>
         <label class="check"><input type="checkbox" data-bind="display.nightWhenDark"> <span data-i18n="s.display.nightWhenDark">Show the night screen whenever the room is dark</span></label>
-        <label class="check"><input type="checkbox" data-bind="display.nightWhenUnreachable"> <span data-i18n="s.display.nightWhenUnreachable">Show the night screen when the computer is unreachable</span></label>
-        <div class="field" style="max-width:420px"><label data-i18n="s.display.unreachableNightDelay">Minutes before the night screen comes on</label><input type="number" min="1" max="30" data-bind="display.unreachableNightDelayMin" data-type="int"></div>
+        <label class="check"><input type="checkbox" data-bind="display.nightWhenUnreachable"> <span data-i18n="s.oled.unreachable">Cover the panel with black when the computer is unreachable</span></label>
+        <div class="field" style="max-width:420px"><label data-i18n="s.oled.unreachableDelay">Minutes before the panel goes black</label><input type="number" min="1" max="30" data-bind="display.unreachableNightDelayMin" data-type="int"></div>
         <label class="check"><input type="checkbox" data-bind="display.proximityWake"> <span data-i18n="s.display.proximityWake">A hand near the phone wakes the night screen</span></label>
         <label class="check"><input type="checkbox" data-bind="display.controlsTop"> <span data-i18n="s.display.controlsTop">Page dots and the Allow / Deny buttons at the top of the screen</span></label>
         <div class="row" style="gap:16px;margin-top:8px;align-items:flex-end;flex-wrap:wrap">
@@ -786,8 +786,10 @@ nav a.on::before { color: var(--accent); }
         <label class="check"><input type="checkbox" data-bind="display.pixelShift"> <span data-i18n="s.oled.pixelShift">Move the panel by a few pixels every 2 minutes, and the night clock around the screen</span></label>
         <div class="field" style="max-width:420px;margin-top:8px"><label data-i18n="s.oled.idleDim">Dim the panel after (minutes without a touch, 0 = never)</label><input type="number" min="0" max="1440" data-bind="display.idleDimMin" data-type="int">
           <span class="hint" data-i18n="s.oled.idleDimHint">A touch brightens it again without pressing anything; so do a page switch, a notification and a permission prompt.</span></div>
-        <div class="field" style="max-width:420px;margin-top:8px"><label data-i18n="s.oled.blackout">Cover the panel with black after the PC has had no keyboard or mouse input for (minutes, 0 = never)</label><input type="number" min="0" max="1440" data-bind="display.blackoutMin" data-type="int">
-          <span class="hint" data-i18n="s.oled.blackoutHint">Use the same time as the PC's "turn off the screen" setting. Moving the mouse or pressing a key on the PC brings the panel back; so do a touch (for 30 seconds), a notification and a permission prompt.</span></div>
+        <div class="field" style="max-width:420px;margin-top:8px"><label data-i18n="s.oled.idleClock">Show the dimmed clock after the PC has had no keyboard or mouse input for (minutes, 0 = never)</label><input type="number" min="0" max="1440" data-bind="display.idleClockMin" data-type="int">
+          <span class="hint" data-i18n="s.oled.idleClockHint">The night screen's clock, at the night brightness (Night mode), whatever the hour. Sounds and vibration stay on.</span></div>
+        <div class="field" style="max-width:420px;margin-top:8px"><label data-i18n="s.oled.blackout">Then cover the panel with black after (minutes more, 0 = never)</label><input type="number" min="0" max="1440" data-bind="display.blackoutMin" data-type="int">
+          <span class="hint" data-i18n="s.oled.blackoutHint">Counted from the dimmed clock, or from the PC's last input if the clock is off. Moving the mouse or pressing a key on the PC brings the panel back; so do a touch (for 30 seconds), a notification and a permission prompt.</span></div>
       </div>
 
       <div class="card">
